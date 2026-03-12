@@ -1,0 +1,703 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>카페 봄날 키오스크</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&display=swap" rel="stylesheet">
+<style>
+/* ════════════════════════════════════════════
+   CSS 변수 & 리셋
+════════════════════════════════════════════ */
+:root {
+  --primary:#E8631A; --primary-dark:#C04F10; --primary-light:#FF8C42;
+  --bg:#FFF8F0; --bg2:#FFF0DC; --card:#FFF;
+  --text:#2C1810; --soft:#7A5C4E; --green:#2E7D32;
+  --shadow:0 6px 24px rgba(232,99,26,.14); --r:20px;
+
+  /* 기본값 (모바일 fallback) */
+  --top-h: 58px;
+  --prog-h: 26px;
+  --lbl-h: 38px;
+  --tip-py: 10px; --tip-px: 14px; --tip-fs: 15px;
+  --base-fs: 15px;
+  --icon-fs: 38px;
+  --cat-name-fs: 18px;
+  --cat-desc-fs: 13px;
+  --price-fs: 18px;
+  --btn-py: 14px;
+  --btn-fs: 17px;
+  --cart-h: 68px;
+  --num-fs: 26px;
+}
+
+/* ── 모드별 변수 오버라이드 ── */
+
+/* 24인치 세로 키오스크 */
+body.mode-kiosk {
+  --top-h: 80px;
+  --prog-h: 36px;
+  --lbl-h: 50px;
+  --tip-py: 14px; --tip-px: 20px; --tip-fs: 20px;
+  --base-fs: 20px;
+  --icon-fs: 68px;
+  --cat-name-fs: 28px;
+  --cat-desc-fs: 17px;
+  --price-fs: 26px;
+  --btn-py: 22px;
+  --btn-fs: 26px;
+  --cart-h: 88px;
+  --num-fs: 38px;
+}
+
+/* 태블릿 세로 */
+body.mode-tablet {
+  --top-h: 66px;
+  --prog-h: 30px;
+  --lbl-h: 42px;
+  --tip-py: 11px; --tip-px: 16px; --tip-fs: 17px;
+  --base-fs: 17px;
+  --icon-fs: 52px;
+  --cat-name-fs: 22px;
+  --cat-desc-fs: 15px;
+  --price-fs: 22px;
+  --btn-py: 18px;
+  --btn-fs: 21px;
+  --cart-h: 76px;
+  --num-fs: 32px;
+}
+
+* { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; user-select:none; }
+html, body { width:100%; height:100%; font-family:'Noto Sans KR',sans-serif; background:var(--bg); color:var(--text); touch-action:manipulation; }
+
+/* ── 세로 모드(portrait): 스크롤 없음, 고정 레이아웃 ── */
+@media (orientation: portrait) {
+  body { overflow: hidden; }
+  .screen { position:absolute; inset:0; display:none; flex-direction:column; width:100%; height:100%; overflow:hidden; }
+  .screen.active { display:flex; }
+}
+
+/* ── 가로 모드(landscape): 스크롤 허용 ── */
+@media (orientation: landscape) {
+  body { overflow-y: auto; }
+  .screen { display:none; flex-direction:column; width:100%; min-height:100vh; }
+  .screen.active { display:flex; }
+  /* 가로에서 그리드 4열로 */
+  #category .cat-grid,
+  #menu .menu-grid,
+  .pay-grid { grid-template-columns:repeat(4,1fr) !important; grid-template-rows:auto !important; }
+  .cat-card, .mc, .pc { min-height: 160px; }
+}
+
+/* ════════════════════════════════════════════
+   ① 웰컴
+════════════════════════════════════════════ */
+#welcome {
+  background:linear-gradient(180deg,#FFE8CC 0%,#FFD09A 55%,#FFC07A 100%);
+  align-items:center; justify-content:center; text-align:center; gap:0;
+}
+.wlc-logo { font-size:calc(var(--icon-fs) * 1.6); animation:bob 3s ease-in-out infinite; }
+@keyframes bob { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-14px)} }
+.wlc-name { font-size:calc(var(--cat-name-fs) * 2.2); font-weight:900; color:var(--primary-dark); margin:16px 0 6px; letter-spacing:-1px; }
+.wlc-sub  { font-size:calc(var(--base-fs) * 1.2); color:var(--soft); margin-bottom:clamp(32px,5vh,72px); }
+.btn-start {
+  background:var(--primary); color:#fff; border:none; border-radius:80px;
+  padding:var(--btn-py) clamp(48px,8vw,100px);
+  font-size:calc(var(--btn-fs) * 1.1); font-weight:700; cursor:pointer;
+  box-shadow:0 14px 44px rgba(232,99,26,.5);
+  animation:glow 2.5s ease-in-out infinite;
+}
+@keyframes glow { 0%,100%{box-shadow:0 14px 44px rgba(232,99,26,.5)} 50%{box-shadow:0 14px 60px rgba(232,99,26,.8)} }
+.btn-start:active { transform:scale(.96); }
+.wlc-hint { margin-top:clamp(16px,2.5vh,32px); font-size:var(--base-fs); color:var(--soft); animation:blink 2s ease-in-out infinite; }
+@keyframes blink { 0%,100%{opacity:1} 50%{opacity:.35} }
+
+/* 모드 배지 */
+.mode-badge {
+  position:absolute; top:20px; right:20px;
+  background:rgba(0,0,0,.15); color:#fff; border-radius:20px;
+  padding:6px 14px; font-size:13px; font-weight:600;
+}
+
+/* ════════════════════════════════════════════
+   공통 헤더 / 진행바 / 라벨 / 팁
+════════════════════════════════════════════ */
+.top-bar {
+  background:var(--primary);
+  height:var(--top-h);
+  padding:0 clamp(16px,2.5vw,32px);
+  display:flex; align-items:center; justify-content:space-between; flex-shrink:0;
+}
+.top-title { font-size:calc(var(--base-fs) * 1.35); font-weight:700; color:#fff; }
+.btn-home {
+  background:rgba(255,255,255,.22); border:2px solid rgba(255,255,255,.45);
+  color:#fff; border-radius:40px; padding:8px 18px;
+  font-size:calc(var(--base-fs) * .95); font-weight:600; cursor:pointer;
+}
+.btn-home:active { background:rgba(255,255,255,.38); }
+
+.prog { height:var(--prog-h); background:var(--bg2); display:flex; align-items:center; padding:0 20px; gap:8px; flex-shrink:0; }
+.pd { flex:1; height:7px; border-radius:4px; background:#DDD; transition:background .35s; }
+.pd.done { background:var(--primary); }
+.pd.now  { background:var(--primary-light); }
+
+.step-lbl {
+  height:var(--lbl-h); background:var(--bg2);
+  display:flex; align-items:center; justify-content:center; flex-shrink:0;
+  font-size:calc(var(--base-fs) * .95); color:var(--soft); font-weight:500; text-align:center;
+}
+.step-lbl strong { color:var(--primary); font-weight:700; }
+
+.tip {
+  background:#FFF3CD; border:2px solid #FFB300; border-radius:14px;
+  padding:var(--tip-py) var(--tip-px); font-size:var(--tip-fs); color:#7B5800;
+  display:flex; align-items:center; gap:10px; flex-shrink:0;
+  margin:clamp(8px,1.2vh,16px) clamp(12px,2vw,24px);
+}
+.tip::before { content:'💡'; font-size:calc(var(--tip-fs) * 1.2); flex-shrink:0; }
+
+/* ════════════════════════════════════════════
+   ② 카테고리
+════════════════════════════════════════════ */
+#category .cat-grid {
+  flex:1;
+  display:grid; grid-template-columns:1fr 1fr; grid-template-rows:1fr 1fr;
+  gap:clamp(10px,1.5vh,20px);
+  padding:clamp(6px,.8vh,14px) clamp(12px,2vw,24px) clamp(12px,1.8vh,22px);
+}
+.cat-card {
+  background:var(--card); border-radius:var(--r);
+  display:flex; flex-direction:column; align-items:center; justify-content:center;
+  gap:clamp(4px,.6vh,10px); cursor:pointer;
+  box-shadow:var(--shadow); border:3px solid transparent;
+  transition:transform .15s, border-color .2s;
+}
+.cat-card:active { transform:scale(.95); }
+.ci { font-size:var(--icon-fs); }
+.cn { font-size:var(--cat-name-fs); font-weight:700; }
+.cd { font-size:var(--cat-desc-fs); color:var(--soft); }
+
+/* ════════════════════════════════════════════
+   ③ 메뉴
+════════════════════════════════════════════ */
+#menu .menu-grid {
+  flex:1;
+  display:grid; grid-template-columns:1fr 1fr; grid-template-rows:1fr 1fr;
+  gap:clamp(10px,1.4vh,18px);
+  padding:clamp(6px,.8vh,12px) clamp(12px,2vw,24px);
+}
+.mc {
+  background:var(--card); border-radius:var(--r);
+  display:flex; flex-direction:column; overflow:hidden;
+  cursor:pointer; box-shadow:var(--shadow);
+  border:3px solid transparent; position:relative;
+  transition:transform .15s, border-color .2s;
+}
+.mc:active { transform:scale(.97); }
+.mc.in { border-color:var(--primary); }
+.me { flex:1; background:linear-gradient(135deg,var(--bg2),var(--bg)); display:flex; align-items:center; justify-content:center; font-size:calc(var(--icon-fs) * .95); }
+.mi { padding:clamp(7px,1vh,14px) clamp(10px,1.5vw,18px); flex-shrink:0; }
+.mn { font-size:calc(var(--cat-name-fs) * .85); font-weight:700; margin-bottom:2px; }
+.mp { font-size:var(--price-fs); font-weight:900; color:var(--primary); }
+.mb {
+  position:absolute; top:9px; right:9px;
+  background:var(--primary); color:#fff; border-radius:50%;
+  width:calc(var(--base-fs) * 1.8); height:calc(var(--base-fs) * 1.8);
+  display:flex; align-items:center; justify-content:center;
+  font-size:calc(var(--base-fs) * .85); font-weight:700; opacity:0; transition:opacity .2s;
+}
+.mc.in .mb { opacity:1; }
+
+.cart-bar {
+  background:var(--primary); height:var(--cart-h);
+  padding:0 clamp(14px,2vw,28px);
+  display:flex; align-items:center; justify-content:space-between; flex-shrink:0;
+}
+.cart-bar.bump { animation:cbump .3s ease; }
+@keyframes cbump { 0%{transform:translateY(0)} 40%{transform:translateY(-7px)} 100%{transform:translateY(0)} }
+.cb-info { color:#fff; }
+.cb-cnt  { font-size:calc(var(--base-fs) * .9); opacity:.88; }
+.cb-tot  { font-size:calc(var(--price-fs) * 1.1); font-weight:900; }
+.btn-cart {
+  background:#fff; color:var(--primary); border:none; border-radius:40px;
+  padding:clamp(10px,1.4vh,16px) clamp(16px,2.5vw,30px);
+  font-size:calc(var(--btn-fs) * .88); font-weight:700; cursor:pointer;
+}
+.btn-cart:active { transform:scale(.95); }
+
+/* ════════════════════════════════════════════
+   ④ 장바구니
+════════════════════════════════════════════ */
+#cart .cart-body {
+  flex:1; display:flex; flex-direction:column; overflow:hidden;
+  padding:clamp(6px,.8vh,12px) clamp(12px,2vw,24px) clamp(10px,1.4vh,18px);
+  gap:clamp(7px,1vh,12px);
+}
+.ci-list { flex:1; display:flex; flex-direction:column; gap:clamp(7px,.9vh,11px); overflow:hidden; }
+.citem {
+  background:var(--card); border-radius:var(--r); flex-shrink:0;
+  padding:clamp(10px,1.3vh,18px) clamp(12px,1.8vw,22px);
+  display:flex; align-items:center; gap:clamp(8px,1.2vw,16px);
+  box-shadow:0 3px 12px rgba(0,0,0,.07);
+}
+.cie { font-size:calc(var(--icon-fs) * .75); }
+.cii { flex:1; min-width:0; }
+.cin { font-size:calc(var(--cat-name-fs) * .85); font-weight:700; }
+.cip { font-size:calc(var(--base-fs) * .95); color:var(--primary); font-weight:600; }
+.qc  { display:flex; align-items:center; gap:clamp(7px,1vw,13px); flex-shrink:0; }
+.qb  {
+  width:calc(var(--btn-fs) * 1.9); height:calc(var(--btn-fs) * 1.9);
+  border-radius:50%; border:2px solid var(--primary);
+  background:#fff; color:var(--primary);
+  font-size:calc(var(--btn-fs) * 1.0); font-weight:700;
+  cursor:pointer; display:flex; align-items:center; justify-content:center;
+}
+.qb:active { background:var(--bg2); }
+.qn { font-size:calc(var(--price-fs) * .95); font-weight:900; min-width:24px; text-align:center; }
+
+.tot-box { background:var(--primary); border-radius:var(--r); padding:clamp(12px,1.7vh,22px) clamp(14px,2vw,24px); color:#fff; flex-shrink:0; }
+.tr  { display:flex; justify-content:space-between; align-items:center; }
+.tl  { font-size:calc(var(--base-fs) * .95); }
+.tv  { font-size:calc(var(--price-fs) * .95); font-weight:700; }
+.tg  { font-size:var(--price-fs); font-weight:900; margin-top:7px; padding-top:9px; border-top:2px solid rgba(255,255,255,.35); }
+
+.btn-row { display:flex; gap:clamp(9px,1.2vw,14px); flex-shrink:0; }
+.btn-a { flex:1; padding:var(--btn-py); border-radius:50px; border:none; font-size:var(--btn-fs); font-weight:700; cursor:pointer; transition:transform .15s; }
+.btn-a:active { transform:scale(.97); }
+.btn-pr { background:var(--primary); color:#fff; }
+.btn-ol { background:#fff; color:var(--primary); border:3px solid var(--primary) !important; }
+
+.empty-c { flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:12px; color:var(--soft); }
+.empty-c .ei { font-size:calc(var(--icon-fs) * 1.3); }
+.empty-c .et { font-size:var(--cat-name-fs); font-weight:600; }
+.empty-c .es { font-size:var(--base-fs); }
+
+/* ════════════════════════════════════════════
+   ⑤ 결제
+════════════════════════════════════════════ */
+#payment .pay-body {
+  flex:1; display:flex; flex-direction:column; overflow:hidden;
+  padding:clamp(6px,.8vh,12px) clamp(12px,2vw,24px) clamp(10px,1.4vh,18px);
+  gap:clamp(9px,1.2vh,16px);
+}
+.pay-grid {
+  flex:1;
+  display:grid; grid-template-columns:1fr 1fr; grid-template-rows:1fr 1fr;
+  gap:clamp(10px,1.4vh,18px);
+}
+.pc {
+  background:var(--card); border-radius:var(--r);
+  display:flex; flex-direction:column; align-items:center; justify-content:center;
+  gap:5px; cursor:pointer; box-shadow:var(--shadow);
+  border:3px solid transparent; transition:all .15s;
+}
+.pc:active { transform:scale(.96); }
+.pc.sel { border-color:var(--primary); background:var(--bg2); }
+.pi  { font-size:calc(var(--icon-fs) * .85); }
+.pn  { font-size:var(--cat-name-fs); font-weight:700; }
+.pd2 { font-size:var(--cat-desc-fs); color:var(--soft); }
+
+/* ════════════════════════════════════════════
+   ⑥ 포인트
+════════════════════════════════════════════ */
+#points { background:linear-gradient(160deg,#FFF8F0 0%,#FFF0DC 100%); }
+#points .pts-body {
+  flex:1; display:flex; flex-direction:column; overflow:hidden;
+  padding:clamp(6px,.8vh,12px) clamp(12px,2vw,24px) clamp(10px,1.4vh,16px);
+  gap:clamp(7px,1vh,13px);
+}
+.pts-hdr { text-align:center; flex-shrink:0; }
+.pts-ttl { font-size:calc(var(--cat-name-fs) * 1.05); font-weight:900; margin-bottom:4px; }
+.pts-sub { font-size:calc(var(--base-fs) * .95); color:var(--soft); margin-bottom:7px; }
+.pts-badge { background:var(--primary); color:#fff; border-radius:50px; padding:clamp(7px,1vh,12px) clamp(16px,2.5vw,28px); display:inline-block; font-size:calc(var(--btn-fs) * .88); font-weight:700; }
+
+.phone-disp {
+  background:#fff; border:3px solid var(--primary); border-radius:17px;
+  padding:clamp(11px,1.5vh,19px) clamp(14px,2vw,22px);
+  display:flex; align-items:center; justify-content:space-between;
+  box-shadow:0 4px 18px rgba(232,99,26,.15); flex-shrink:0;
+}
+.ph-num { font-size:calc(var(--num-fs) * 1.15); font-weight:900; color:var(--text); letter-spacing:4px; }
+.ph-num.ph-empty { color:#CCC; font-size:calc(var(--base-fs) * 1.15); font-weight:400; letter-spacing:1px; }
+.ph-del { background:var(--bg2); border:none; border-radius:11px; padding:clamp(7px,1vh,13px) clamp(11px,1.5vw,17px); font-size:calc(var(--btn-fs) * .95); cursor:pointer; }
+.ph-del:active { background:#DDD; }
+
+.numpad {
+  flex:1;
+  display:grid; grid-template-columns:repeat(3,1fr); grid-template-rows:repeat(4,1fr);
+  gap:clamp(6px,.9vh,11px);
+}
+.nb {
+  background:#fff; border:2px solid #E8E0D8; border-radius:15px;
+  display:flex; flex-direction:column; align-items:center; justify-content:center;
+  font-size:var(--num-fs); font-weight:700; cursor:pointer;
+  box-shadow:0 3px 10px rgba(0,0,0,.08); transition:transform .1s, background .1s; gap:2px;
+}
+.nb:active { transform:scale(.93); background:var(--bg2); }
+.nb .sub { font-size:calc(var(--base-fs) * .7); color:var(--soft); font-weight:400; }
+.nb.del  { background:var(--bg2); font-size:calc(var(--base-fs) * 1.0); }
+.nb.ok   { background:var(--primary); color:#fff; border-color:var(--primary); font-size:calc(var(--base-fs) * 1.0); }
+.nb.ok:active { background:var(--primary-dark); }
+
+.skip-btn { background:#fff; border:2px solid #CCC; border-radius:50px; padding:clamp(13px,1.7vh,19px); width:100%; font-size:calc(var(--btn-fs) * .85); font-weight:600; color:var(--soft); cursor:pointer; flex-shrink:0; }
+.skip-btn:active { background:var(--bg2); }
+
+/* ════════════════════════════════════════════
+   ⑦ 완료
+════════════════════════════════════════════ */
+#complete {
+  background:linear-gradient(160deg,#E8F5E9 0%,#C8E6C9 100%);
+  align-items:center; justify-content:center; text-align:center;
+  gap:clamp(9px,1.3vh,18px);
+  padding:clamp(20px,3vh,40px) clamp(18px,2.5vw,36px);
+}
+.cmp-icon { font-size:calc(var(--icon-fs) * 1.4); animation:popIn .5s cubic-bezier(.175,.885,.32,1.275) both; }
+@keyframes popIn { 0%{transform:scale(0);opacity:0} 100%{transform:scale(1);opacity:1} }
+.cmp-ttl  { font-size:calc(var(--cat-name-fs) * 1.7); font-weight:900; color:var(--green); }
+.cmp-sub  { font-size:calc(var(--base-fs) * 1.1); color:#388E3C; }
+.ord-num  { background:var(--green); color:#fff; border-radius:17px; padding:clamp(12px,1.7vh,22px) clamp(30px,4.5vw,58px); }
+.on-lbl   { font-size:calc(var(--base-fs) * .95); opacity:.85; margin-bottom:3px; }
+.on-val   { font-size:calc(var(--num-fs) * 1.6); font-weight:900; }
+.pts-done { background:linear-gradient(135deg,#FF8C42,var(--primary)); color:#fff; border-radius:17px; padding:clamp(11px,1.5vh,20px) clamp(18px,2.5vw,32px); width:100%; }
+.pdb-lbl  { font-size:calc(var(--base-fs) * .9); opacity:.9; margin-bottom:2px; }
+.pdb-ph   { font-size:calc(var(--base-fs) * 1.1); font-weight:700; letter-spacing:2px; margin-bottom:5px; }
+.pdb-pts  { font-size:calc(var(--price-fs) * 1.4); font-weight:900; }
+.cmp-items { background:#fff; border-radius:var(--r); padding:clamp(12px,1.7vh,22px) clamp(14px,2vw,24px); width:100%; box-shadow:0 4px 16px rgba(0,0,0,.08); }
+.cit { display:flex; justify-content:space-between; padding:clamp(5px,.7vh,9px) 0; font-size:calc(var(--base-fs) * 1.0); border-bottom:1px solid #EEE; }
+.cit:last-child { border-bottom:none; }
+.btn-restart { background:var(--green); color:#fff; border:none; border-radius:60px; padding:var(--btn-py) clamp(32px,5vw,60px); font-size:var(--btn-fs); font-weight:700; cursor:pointer; box-shadow:0 8px 24px rgba(46,125,50,.35); width:100%; }
+.btn-restart:active { transform:scale(.97); }
+
+/* 토스트 */
+.toast { position:fixed; bottom:12vh; left:50%; transform:translateX(-50%) translateY(16px); background:#2C1810; color:#fff; padding:clamp(10px,1.4vh,16px) clamp(20px,3vw,32px); border-radius:40px; font-size:var(--base-fs); font-weight:600; opacity:0; transition:all .28s; pointer-events:none; z-index:999; white-space:nowrap; }
+.toast.show { opacity:1; transform:translateX(-50%) translateY(0); }
+</style>
+</head>
+<body>
+
+<!-- ① 웰컴 -->
+<div id="welcome" class="screen active">
+  <div class="wlc-logo">☕</div>
+  <div class="wlc-name">카페 봄날</div>
+  <div class="wlc-sub">키오스크 체험 데모</div>
+  <button class="btn-start" onclick="go('category')">📱 주문 시작하기</button>
+  <div class="wlc-hint">▼ 화면을 눌러 시작하세요 ▼</div>
+  <div class="mode-badge" id="modeBadge">감지 중...</div>
+</div>
+
+<!-- ② 카테고리 -->
+<div id="category" class="screen">
+  <div class="top-bar"><span class="top-title">☕ 카페 봄날</span><button class="btn-home" onclick="home()">🏠 처음으로</button></div>
+  <div class="prog"><div class="pd now"></div><div class="pd"></div><div class="pd"></div><div class="pd"></div><div class="pd"></div></div>
+  <div class="step-lbl"><strong>1단계</strong>&nbsp;— 메뉴 종류를 선택하세요</div>
+  <div class="tip">메뉴 종류를 한 번 누르면 해당 메뉴가 나타나요!</div>
+  <div class="cat-grid">
+    <div class="cat-card" onclick="selCat('coffee','☕ 커피')"><div class="ci">☕</div><div class="cn">커피</div><div class="cd">아메리카노, 라떼 등</div></div>
+    <div class="cat-card" onclick="selCat('nonCoffee','🧋 논커피')"><div class="ci">🧋</div><div class="cn">논커피</div><div class="cd">스무디, 에이드 등</div></div>
+    <div class="cat-card" onclick="selCat('dessert','🍰 디저트')"><div class="ci">🍰</div><div class="cn">디저트</div><div class="cd">케이크, 머핀 등</div></div>
+    <div class="cat-card" onclick="selCat('food','🥐 식사류')"><div class="ci">🥐</div><div class="cn">식사류</div><div class="cd">샌드위치, 토스트</div></div>
+  </div>
+</div>
+
+<!-- ③ 메뉴 -->
+<div id="menu" class="screen">
+  <div class="top-bar"><span class="top-title" id="menuTitle">☕ 커피</span><button class="btn-home" onclick="home()">🏠 처음으로</button></div>
+  <div class="prog"><div class="pd done"></div><div class="pd now"></div><div class="pd"></div><div class="pd"></div><div class="pd"></div></div>
+  <div class="step-lbl"><strong>2단계</strong>&nbsp;— 메뉴를 선택하세요 (여러 개 가능)</div>
+  <div class="tip">메뉴를 누르면 담겨요. 또 누르면 수량이 늘어나요!</div>
+  <div class="menu-grid" id="menuGrid"></div>
+  <div class="cart-bar" id="cartBar">
+    <div class="cb-info"><div class="cb-cnt" id="cartCnt">0개 담김</div><div class="cb-tot" id="cartTot">0원</div></div>
+    <button class="btn-cart" onclick="go('cart')">장바구니 보기 →</button>
+  </div>
+</div>
+
+<!-- ④ 장바구니 -->
+<div id="cart" class="screen">
+  <div class="top-bar"><span class="top-title">🛒 장바구니</span><button class="btn-home" onclick="home()">🏠 처음으로</button></div>
+  <div class="prog"><div class="pd done"></div><div class="pd done"></div><div class="pd now"></div><div class="pd"></div><div class="pd"></div></div>
+  <div class="step-lbl"><strong>3단계</strong>&nbsp;— 주문 내역을 확인하세요</div>
+  <div class="tip">＋ － 버튼으로 수량을 바꾸거나 빼세요!</div>
+  <div class="cart-body" id="cartBody"></div>
+</div>
+
+<!-- ⑤ 결제 -->
+<div id="payment" class="screen">
+  <div class="top-bar"><span class="top-title">💳 결제 방법</span><button class="btn-home" onclick="home()">🏠 처음으로</button></div>
+  <div class="prog"><div class="pd done"></div><div class="pd done"></div><div class="pd done"></div><div class="pd now"></div><div class="pd"></div></div>
+  <div class="step-lbl"><strong>4단계</strong>&nbsp;— 결제 방법을 선택하세요</div>
+  <div class="pay-body">
+    <div class="tip" style="margin:0;">결제 방법을 선택하고 결제하기 버튼을 누르세요!</div>
+    <div class="pay-grid">
+      <div class="pc" id="pc-card"  onclick="selPay('card')"><div class="pi">💳</div><div class="pn">신용/체크카드</div><div class="pd2">카드를 단말기에 꽂아요</div></div>
+      <div class="pc" id="pc-cash"  onclick="selPay('cash')"><div class="pi">💵</div><div class="pn">현금</div><div class="pd2">현금을 넣어요</div></div>
+      <div class="pc" id="pc-kakao" onclick="selPay('kakao')"><div class="pi">💛</div><div class="pn">카카오페이</div><div class="pd2">QR 코드 스캔</div></div>
+      <div class="pc" id="pc-naver" onclick="selPay('naver')"><div class="pi">🟢</div><div class="pn">네이버페이</div><div class="pd2">QR 코드 스캔</div></div>
+    </div>
+    <div class="tot-box" id="payTot"></div>
+    <div class="btn-row">
+      <button class="btn-a btn-ol" onclick="go('cart')" style="flex:.55">← 뒤로</button>
+      <button class="btn-a btn-pr" id="btnPay" onclick="doPay()" style="display:none;flex:1.45">💳 결제하기</button>
+    </div>
+  </div>
+</div>
+
+<!-- ⑥ 포인트 -->
+<div id="points" class="screen">
+  <div class="top-bar"><span class="top-title">🌟 포인트 적립</span><button class="btn-home" onclick="home()">🏠 처음으로</button></div>
+  <div class="prog"><div class="pd done"></div><div class="pd done"></div><div class="pd done"></div><div class="pd done"></div><div class="pd now"></div></div>
+  <div class="step-lbl"><strong>5단계</strong>&nbsp;— 포인트 적립 (선택사항)</div>
+  <div class="pts-body">
+    <div class="pts-hdr">
+      <div class="pts-ttl">📱 휴대폰 번호를 입력해주세요</div>
+      <div class="pts-sub">결제금액의 <strong style="color:var(--primary)">2%</strong>가 포인트로 적립돼요</div>
+      <div class="pts-badge" id="ptsAmt">이번 적립 예정: 0 P</div>
+    </div>
+    <div class="phone-disp">
+      <div class="ph-num ph-empty" id="phDisp">번호를 입력하세요</div>
+      <button class="ph-del" onclick="phDel()">⌫</button>
+    </div>
+    <div class="numpad">
+      <button class="nb" onclick="phIn('1')">1</button>
+      <button class="nb" onclick="phIn('2')">2<div class="sub">ABC</div></button>
+      <button class="nb" onclick="phIn('3')">3<div class="sub">DEF</div></button>
+      <button class="nb" onclick="phIn('4')">4<div class="sub">GHI</div></button>
+      <button class="nb" onclick="phIn('5')">5<div class="sub">JKL</div></button>
+      <button class="nb" onclick="phIn('6')">6<div class="sub">MNO</div></button>
+      <button class="nb" onclick="phIn('7')">7<div class="sub">PQRS</div></button>
+      <button class="nb" onclick="phIn('8')">8<div class="sub">TUV</div></button>
+      <button class="nb" onclick="phIn('9')">9<div class="sub">WXYZ</div></button>
+      <button class="nb del" onclick="phClear()">전체<br>지우기</button>
+      <button class="nb" onclick="phIn('0')">0</button>
+      <button class="nb ok" onclick="confirmPts()">적립<br>완료 ✓</button>
+    </div>
+    <button class="skip-btn" onclick="skipPts()">건너뛰기 (적립 안 함)</button>
+  </div>
+</div>
+
+<!-- ⑦ 완료 -->
+<div id="complete" class="screen">
+  <div class="cmp-icon">✅</div>
+  <div class="cmp-ttl">주문 완료!</div>
+  <div class="cmp-sub">잠시 후 번호를 불러드려요</div>
+  <div class="ord-num"><div class="on-lbl">대기 번호</div><div class="on-val" id="ordNum">—</div></div>
+  <div id="ptsDone"></div>
+  <div class="cmp-items" id="cmpItems"></div>
+  <button class="btn-restart" onclick="home()">🔄 처음으로 돌아가기</button>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* ════════════════════════════════════════════
+   모드 감지 & 적용
+   ────────────────────────────────────────
+   kiosk  : 세로 모니터 (width ≥ 900px, portrait)
+   tablet : 태블릿     (width ≥ 480px, portrait)
+   mobile : 그 외 (landscape 포함)
+════════════════════════════════════════════ */
+const MODE_LABELS = {
+  'mode-kiosk':  '🖥 24인치 키오스크 모드',
+  'mode-tablet': '📱 태블릿 모드',
+  'mode-mobile': '📲 모바일 모드',
+};
+
+function detectMode() {
+  const w = window.innerWidth;
+  const h = window.innerHeight;
+  const portrait = h >= w; // 세로 여부
+  if (portrait && w >= 900)  return 'mode-kiosk';
+  if (portrait && w >= 480)  return 'mode-tablet';
+  return 'mode-mobile';
+}
+
+function applyMode() {
+  const body = document.body;
+  body.classList.remove('mode-kiosk', 'mode-tablet', 'mode-mobile');
+  const mode = detectMode();
+  body.classList.add(mode);
+  const badge = document.getElementById('modeBadge');
+  if (badge) badge.textContent = MODE_LABELS[mode] || mode;
+}
+
+// 최초 실행 & 화면 회전/리사이즈 시 재감지
+applyMode();
+window.addEventListener('resize', applyMode);
+window.addEventListener('orientationchange', () => setTimeout(applyMode, 150));
+
+/* ════════════════════════════════════════════
+   데이터
+════════════════════════════════════════════ */
+const MENUS = {
+  coffee:    [{id:'am',  name:'아메리카노',   price:3500, e:'☕'},
+              {id:'la',  name:'카페라떼',     price:4500, e:'🥛'},
+              {id:'cap', name:'카푸치노',     price:4500, e:'☕'},
+              {id:'vl',  name:'바닐라라떼',   price:5000, e:'🌿'}],
+  nonCoffee: [{id:'sm',  name:'딸기스무디',   price:5500, e:'🍓'},
+              {id:'ma',  name:'망고에이드',   price:5000, e:'🥭'},
+              {id:'gt',  name:'녹차라떼',     price:5000, e:'🍵'},
+              {id:'cho', name:'초코라떼',     price:5000, e:'🍫'}],
+  dessert:   [{id:'cake',name:'티라미수',     price:6500, e:'🍰'},
+              {id:'muf', name:'블루베리머핀', price:3500, e:'🫐'},
+              {id:'mac', name:'마카롱(3개)',  price:5000, e:'🟣'},
+              {id:'cook',name:'초코쿠키',     price:2500, e:'🍪'}],
+  food:      [{id:'sand',name:'BLT샌드위치', price:6500, e:'🥪'},
+              {id:'toast',name:'에그토스트', price:5000, e:'🍳'},
+              {id:'crois',name:'크로아상',   price:3000, e:'🥐'},
+              {id:'bagel',name:'어니언베이글',price:4000, e:'🥯'}]
+};
+
+let cart={}, payMethod=null, phone='', earnPts=0, savedPh='';
+const f   = n => n.toLocaleString('ko-KR') + '원';
+const fph = n => n.length<=3 ? n : n.length<=7 ? n.slice(0,3)+'-'+n.slice(3) : n.slice(0,3)+'-'+n.slice(3,7)+'-'+n.slice(7);
+const total = () => Object.values(cart).reduce((s,i) => s + i.price*i.qty, 0);
+const count = () => Object.values(cart).reduce((s,i) => s + i.qty, 0);
+
+/* ── 화면 전환 ── */
+function go(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  if (id==='cart')     buildCart();
+  if (id==='payment')  buildPay();
+  if (id==='points')   buildPts();
+  if (id==='complete') buildDone();
+}
+function home() {
+  cart={}; payMethod=null; phone=''; earnPts=0; savedPh='';
+  go('welcome');
+}
+
+/* ── 카테고리 / 메뉴 ── */
+function selCat(cat, label) {
+  document.getElementById('menuTitle').textContent = label;
+  buildMenu(cat); go('menu');
+}
+function buildMenu(cat) {
+  const g = document.getElementById('menuGrid'); g.innerHTML = '';
+  MENUS[cat].forEach(item => {
+    const qty = cart[item.id] ? cart[item.id].qty : 0;
+    g.innerHTML += `<div class="mc${qty?' in':''}" id="mc-${item.id}" onclick="addItem('${item.id}','${cat}')">
+      <div class="me">${item.e}</div>
+      <div class="mi"><div class="mn">${item.name}</div><div class="mp">${f(item.price)}</div></div>
+      <div class="mb" id="mb-${item.id}">${qty||''}</div></div>`;
+  });
+  updBar();
+}
+function addItem(id, cat) {
+  const item = MENUS[cat].find(m => m.id===id);
+  if (!cart[id]) cart[id] = {...item, qty:0};
+  cart[id].qty++;
+  const mc=document.getElementById('mc-'+id), mb=document.getElementById('mb-'+id);
+  if (mc) mc.classList.add('in');
+  if (mb) { mb.textContent=cart[id].qty; mb.style.opacity='1'; }
+  updBar();
+  toast(`${item.name} 담았어요! 🛒`);
+  const bar=document.getElementById('cartBar');
+  bar.classList.remove('bump'); void bar.offsetWidth; bar.classList.add('bump');
+}
+function updBar() {
+  document.getElementById('cartCnt').textContent = count()+'개 담김';
+  document.getElementById('cartTot').textContent = f(total());
+}
+
+/* ── 장바구니 ── */
+function buildCart() {
+  const el=document.getElementById('cartBody');
+  const items=Object.values(cart).filter(i=>i.qty>0);
+  if (!items.length) {
+    el.innerHTML=`<div class="empty-c"><div class="ei">🛒</div><div class="et">아직 아무것도 없어요</div><div class="es">메뉴를 먼저 선택해주세요</div></div>
+      <div class="btn-row" style="margin-top:auto"><button class="btn-a btn-ol" onclick="go('category')" style="flex:1">← 메뉴 담으러 가기</button></div>`;
+    return;
+  }
+  let html = '<div class="ci-list">';
+  items.forEach(i => {
+    html += `<div class="citem">
+      <div class="cie">${i.e}</div>
+      <div class="cii"><div class="cin">${i.name}</div><div class="cip">${f(i.price)} × ${i.qty} = ${f(i.price*i.qty)}</div></div>
+      <div class="qc">
+        <button class="qb" onclick="chgQty('${i.id}',-1)">－</button>
+        <div class="qn">${i.qty}</div>
+        <button class="qb" onclick="chgQty('${i.id}',1)">＋</button>
+      </div></div>`;
+  });
+  html += '</div>';
+  const tot = total();
+  html += `<div class="tot-box">
+    <div class="tr"><span class="tl">상품 합계</span><span class="tv">${f(tot)}</span></div>
+    <div class="tr"><span class="tl">부가세(포함)</span><span class="tv">${f(Math.round(tot/11))}</span></div>
+    <div class="tr tg"><span>최종 결제</span><span>${f(tot)}</span></div>
+  </div>
+  <div class="btn-row">
+    <button class="btn-a btn-ol" onclick="go('category')" style="flex:.65">← 더 담기</button>
+    <button class="btn-a btn-pr" onclick="go('payment')" style="flex:1.35">결제 방법 선택 →</button>
+  </div>`;
+  el.innerHTML = html;
+}
+function chgQty(id, d) {
+  if (!cart[id]) return;
+  cart[id].qty = Math.max(0, cart[id].qty+d);
+  if (!cart[id].qty) delete cart[id];
+  buildCart();
+}
+
+/* ── 결제 ── */
+function buildPay() {
+  document.getElementById('payTot').innerHTML = `<div class="tr tg"><span>최종 결제 금액</span><span>${f(total())}</span></div>`;
+  payMethod=null; document.getElementById('btnPay').style.display='none';
+  ['card','cash','kakao','naver'].forEach(p => document.getElementById('pc-'+p).classList.remove('sel'));
+}
+function selPay(m) {
+  payMethod=m;
+  ['card','cash','kakao','naver'].forEach(p => document.getElementById('pc-'+p).classList.remove('sel'));
+  document.getElementById('pc-'+m).classList.add('sel');
+  const lb={card:'💳 카드',cash:'💵 현금',kakao:'💛 카카오페이',naver:'🟢 네이버페이'};
+  const btn=document.getElementById('btnPay');
+  btn.textContent=lb[m]+'로 결제하기'; btn.style.display='block';
+}
+function doPay() { if (payMethod) go('points'); }
+
+/* ── 포인트 ── */
+function buildPts() {
+  phone='';
+  document.getElementById('ptsAmt').textContent = `이번 적립 예정: ${Math.floor(total()*.02).toLocaleString()} P`;
+  updPh();
+}
+function phIn(n) { if (phone.length>=11) return; phone+=n; updPh(); }
+function phDel()  { phone=phone.slice(0,-1); updPh(); }
+function phClear(){ phone=''; updPh(); }
+function updPh() {
+  const el=document.getElementById('phDisp');
+  if (!phone) { el.textContent='번호를 입력하세요'; el.className='ph-num ph-empty'; }
+  else        { el.textContent=fph(phone);          el.className='ph-num'; }
+}
+function confirmPts() {
+  if (phone.length<10) { toast('휴대폰 번호를 끝까지 입력해주세요 📱'); return; }
+  earnPts=Math.floor(total()*.02); savedPh=fph(phone); go('complete');
+}
+function skipPts() { earnPts=0; savedPh=''; go('complete'); }
+
+/* ── 완료 ── */
+function buildDone() {
+  document.getElementById('ordNum').textContent = Math.floor(Math.random()*50)+10;
+  const pb=document.getElementById('ptsDone');
+  pb.innerHTML = earnPts>0 ? `<div class="pts-done">
+    <div class="pdb-lbl">🌟 포인트 적립 완료!</div>
+    <div class="pdb-ph">${savedPh}</div>
+    <div class="pdb-pts">+${earnPts.toLocaleString()} <span style="font-size:.52em;font-weight:500">포인트</span></div>
+  </div>` : '';
+  const items=Object.values(cart).filter(i=>i.qty>0);
+  let html=items.map(i=>`<div class="cit"><span>${i.e} ${i.name} ×${i.qty}</span><span style="font-weight:700">${f(i.price*i.qty)}</span></div>`).join('');
+  html+=`<div class="cit" style="font-weight:900;border-top:2px solid #EEE;padding-top:8px"><span>합계</span><span style="color:var(--green)">${f(total())}</span></div>`;
+  document.getElementById('cmpItems').innerHTML=html;
+}
+
+/* ── 토스트 ── */
+let tTimer;
+function toast(msg) {
+  const t=document.getElementById('toast');
+  t.textContent=msg; t.classList.add('show');
+  clearTimeout(tTimer); tTimer=setTimeout(()=>t.classList.remove('show'),1800);
+}
+</script>
+</body>
+</html>
